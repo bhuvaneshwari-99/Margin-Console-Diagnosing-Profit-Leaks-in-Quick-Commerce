@@ -41,10 +41,7 @@ The goal is to identify which orders, products, and locations are losing money â
 | Spreadsheet Analysis            | Microsoft Excel                            |
 
 ---
-# Key Insight
- Through SQL analysis of the dataset, the following key insights were identified:
-## Profitability
- 
+
 ## ðŸ”‘ Key Insights
 
 Here are the key insights from your analysis:
