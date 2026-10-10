@@ -1,0 +1,8 @@
+.streamlit/secrets.toml
+*.json
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+data/*.csv
+data/orders_clean.parquet
