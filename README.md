@@ -1,6 +1,6 @@
 # Margin Console: find the profit leak, then test the fix
 
-**[▶ Live app](https://YOUR-APP-NAME.streamlit.app)** · Python · SQL (PostgreSQL + BigQuery) · Streamlit · A/B-test design
+ Python · SQL (PostgreSQL + BigQuery) · Streamlit · A/B-test design
 
 Quick-commerce platforms run on thin margins, and small baskets are expensive to deliver. This project
 (1) quantifies where 947,752 orders lose money, (2) turns that into a **what-if tool** where a manager sets a minimum
