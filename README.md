@@ -1,15 +1,63 @@
 # Margin Console: find the profit leak, then test the fix
 
- Python · SQL (PostgreSQL + BigQuery) · Streamlit · A/B-test design
+**Python · SQL (PostgreSQL + BigQuery) · Streamlit · A/B-test design**
 
-Quick-commerce platforms run on thin margins, and small baskets are expensive to deliver. This project
-(1) quantifies where 947,752 orders lose money, (2) turns that into a **what-if tool** where a manager sets a minimum
-order value or small-order fee and sees the expected change in profit, loss-making orders and lost orders by city and
-platform, and (3) designs the **A/B test** that would replace the tool's assumptions with measured behaviour.
 
-## Try it
+> 9.77% of 947,752 quick-commerce orders lose money. This project shows *why*, turns that into a what-if tool a manager can use to set a minimum order value or small-order fee, and designs the A/B test that would replace the tool's assumptions with measured customer behaviour.
 
-Set a threshold in the sidebar and the app shows:
+<!-- Add a screenshot or GIF of the app here: docs/app_demo.gif -->
+
+---
+
+## TL;DR
+
+| | |
+|---|---|
+| **Question** | Where do orders lose money, and what would a minimum order value or small-order fee do to profit? |
+| **Data** | 947,752 quick-commerce orders (Kaggle, 13 columns), cleaned and enriched |
+| **Answer** | Losses are arithmetic: delivery cost rises with distance, and small baskets don't clear it |
+| **Deliverables** | (1) Analysis notebook and SQL, (2) Streamlit what-if app, (3) A/B test design |
+| **Not claimed** | Customer response. The data has no sessions or carts, so that is a slider, not a fact |
+
+---
+
+## Key results
+
+| Metric | Value |
+|---|---|
+| Loss-making orders | **92,592 (9.77%)** |
+| Aggregate deficit | **₹4.22M** |
+| Average loss per loss-making order | **₹45.61** |
+| Delivery cost formula (fitted, correlation with distance = 1.0) | **₹29 + ₹8 × km** |
+| Break-even basket | **~₹45 at 2 km → ~₹149 at 15 km** (before discounts) |
+
+### What drives the losses
+A loss happens when the basket is smaller than the trip costs to deliver. **Distance sets the bar; basket size decides whether it is cleared.** A flat minimum order value is therefore too blunt, and a **distance-tiered small-basket fee** targets the mechanism directly.
+
+### Other findings
+
+| Finding | Numbers | Read it as |
+|---|---|---|
+| **Discounted orders are larger and more profitable** | Basket ₹712 vs ₹476; profit ₹614 vs ₹385 (+59%); Welch t = 284.8 | **Association, not causation.** The ₹228.6 profit gap = ₹235.8 basket gap − ₹7.1 average discount. Delivery cost is identical across groups, so the discount is a cost, not a driver. Discounted baskets are ~49% larger in every age group. Whether discounts *cause* bigger baskets needs an experiment. |
+| **Faster deliveries are more profitable** | 0-15 min: ₹527 profit, 6.88% loss-order rate, ₹76 delivery cost. 31-45 min: ₹282, 23.07%, ₹115 | Mostly near vs far (cost depends on distance). The notebook holds distance fixed. |
+| **Platforms** | Jio Mart: lowest avg margin (58.3%), highest loss-order rate (10.81%), smallest basket (₹483). Swiggy Instamart: 64.9%, 9.21%, ₹645 | Differences are driven by basket size. |
+| **Cities** | Haridwar (₹342 avg profit/order) and Jaipur trail Gurgaon (₹600) on every platform | Gap is market-level (basket and distance mix), not platform-specific. |
+
+> With n ≈ 948k, p < 0.001 is guaranteed, so the notebook reports effect sizes and intervals, and compares like-for-like within basket bands rather than relying on p-values.
+
+### Corrections made along the way
+An earlier version of this analysis said *"100% of losses are Low Value Orders; distance is not a cause."* That was wrong:
+- The "Low Value Order" label is true **by construction** (it tests order value < ₹300 first), so it proves nothing.
+- Distance **is** the cause of the break-even moving, since cost is an exact function of distance.
+- "Attrition" was really **loss-order rate**, which is not customer churn.
+
+The corrected analysis is in the notebook's summary table.
+
+---
+
+## The what-if app
+
+Set a minimum order value or small-order fee in the sidebar:
 
 | Output | What it answers |
 |---|---|
@@ -20,100 +68,96 @@ Set a threshold in the sidebar and the app shows:
 | Break-even | How many small-basket customers can leave before the policy stops paying? |
 | Experiment design | How many carts and how many days to test it properly? |
 
-## Findings
+**Adjustable assumptions:** top-up rate, abandon rate, delivery-cost stress test, contribution-margin slider (100% reproduces the dataset).
 
-The numbers below come from `notebooks/q_comm.ipynb` on the full 947,752-order table.
-
-1. **9.77% of orders are loss-making**: 92,592 orders, ₹4.22M aggregate deficit, ₹45.61 average loss per loss-making order.
-2. **A loss happens when the basket is smaller than the trip costs to deliver.** In this table `Delivery_Cost` is
-   exactly ₹29 + ₹8 × km (correlation with distance = 1.0), so the break-even basket rises from about ₹45 at 2 km to
-   about ₹149 at 15 km (before discounts). Distance sets the bar; basket size decides whether it is cleared.
-   *(An earlier version said "100% of losses are Low Value Orders, distance is not a cause". That label is true by
-   construction, since it tests order value < 300 first, and the distance claim was wrong. See the notebook summary table.)*
-3. **Discounted orders are larger and more profitable on average**: basket ₹712 vs ₹476, profit ₹614 vs ₹385 (+59%),
-   Welch t = 284.8. That is an association, and the arithmetic shows why: the ₹228.6 profit gap is the ₹235.8 basket
-   gap minus the ₹7.1 average discount, so delivery cost is identical across the two groups and the discount is a cost,
-   not a driver. Discounted baskets are ~49% larger in every age group. The notebook compares like-for-like within
-   basket bands and reports effect size and interval, since p < 0.001 is guaranteed at n ≈ 948k. Whether discounts
-   *cause* larger baskets needs an experiment.
-4. **Faster deliveries are more profitable**: 0-15 min orders average ₹527 profit vs ₹282 for 31-45 min (1.9×), with a
-   6.88% vs 23.07% loss-order rate (3.4× lower) and ₹76 vs ₹115 delivery cost. Cost depends on distance, so
-   this mostly reflects near vs far; the notebook holds distance fixed.
-5. **Platforms**: Jio Mart has the lowest average margin (58.3%) and highest loss-order rate (10.81%) vs Swiggy Instamart
-   (64.9%, 9.21%). Jio Mart also has the smallest average basket (₹483 vs ₹645).
-6. **Cities**: Haridwar (₹342 avg profit/order) and Jaipur trail Gurgaon (₹600) on every platform, so the gap is
-   market-level (basket and distance mix), not platform-specific.
-
-**Bottom line:** a minimum order value or a distance-tiered small-basket fee targets the mechanism directly. How
-much it earns depends on how customers respond, which this data cannot say. Hence the tool and the test.
+---
 
 ## Read before quoting any number
 
-* **Cost is modelled, not observed.** The Kaggle source has 13 columns and no cost fields. `Delivery_Cost`,
-  `Discount_Amt`, `Profit`, `In_Loss` and `Loss_Driver` were derived. The app has a delivery-cost stress-test slider for this reason.
-* **`Profit` is before product cost** (order value − delivery − discount). Real contribution margins are much
-  lower, which would make far more orders loss-making. The app has a contribution-margin slider; at 100% it reproduces the dataset.
-* **The dataset looks simulated** (platforms, cities and categories are each almost perfectly evenly split).
-  Platform and city rankings demonstrate method, not facts about real companies.
-* **Customer response is assumed.** There are no sessions, carts or timestamps, so top-up and abandon rates
-  are sliders, not estimates.
-* "Loss rate" is the share of orders with negative profit. It is **not** customer attrition.
+- **Cost is modelled, not observed.** The source has no cost fields. `Delivery_Cost`, `Discount_Amt`, `Profit`, `In_Loss` and `Loss_Driver` were derived. A delivery-cost stress-test slider exists for this reason.
+- **Profit is before product cost** (order value − delivery − discount). Real contribution margins are much lower, which would make far more orders loss-making. Use the contribution-margin slider.
+- **The dataset looks simulated.** Platforms, cities and categories are each almost perfectly evenly split. Rankings demonstrate method, not facts about real companies.
+- **Customer response is assumed.** No sessions, carts or timestamps exist, so top-up and abandon rates are sliders, not estimates.
+- **"Loss rate" is the share of orders with negative profit.** It is not customer attrition.
+
+---
+
+## The experiment (design only, no results)
+
+- **Unit and arms:** randomise customers between "no minimum" and "minimum ₹X" (optionally a fee arm).
+- **Primary metric:** contribution profit per eligible cart, with abandoned carts counted as ₹0 so lost orders are priced in.
+- **Guardrails:** cart→order conversion, 28-day repeat orders, ratings.
+- **Sample size and duration:** calculated in the app's *Experiment design* tab from the data's own variance plus stated assumptions.
+- **Closing the loop:** the measured result feeds straight back into the tool's top-up and abandon sliders.
+
+---
+
+## Method and testing
+
+- **Cleaning and validation:** `scripts/prepare_data.py` validates the CSV and writes parquet/CSV.
+- **Analysis:** SQL in PostgreSQL and BigQuery (same logic, two dialects), plus the notebook for EDA and statistics.
+- **Engine:** expected-profit model, break-even maths and cost fit in `margin_console/model.py`.
+- **Tests (pytest):** engine, app UI, SQL, and a **SQL-vs-Python cross-check** so both implementations agree.
+
+---
 
 ## Repository
 
 ```
-streamlit_app.py            the what-if app
+streamlit_app.py             the what-if app
 margin_console/
-  model.py                  expected-profit engine, break-even maths, cost fit
-  ab_design.py              sample size and duration
-  data.py                   BigQuery → local parquet → synthetic fallback
-  demo_data.py              synthetic stand-in (tests + fallback only)
-notebooks/q_comm.ipynb      cleaning, EDA, statistics, export
-sql/quick_comm_postgres.sql PostgreSQL analysis (executed in tests)
-sql/quick_comm_bigquery.sql BigQuery version
-scripts/prepare_data.py     validate + clean CSV → parquet/CSV
-scripts/load_to_bigquery.py load into BigQuery
-tests/                      engine, app UI, SQL (incl. SQL-vs-Python cross-check)
-docs/linkedin_post.md       write-up
+  model.py                   expected-profit engine, break-even maths, cost fit
+  ab_design.py               sample size and duration
+  data.py                    BigQuery -> local parquet -> synthetic fallback
+  demo_data.py               synthetic stand-in (tests + fallback only)
+notebooks/q_comm.ipynb       cleaning, EDA, statistics, export
+sql/quick_comm_postgres.sql  PostgreSQL analysis (executed in tests)
+sql/quick_comm_bigquery.sql  BigQuery version
+scripts/prepare_data.py      validate + clean CSV -> parquet/CSV
+scripts/load_to_bigquery.py  load into BigQuery
+tests/                       engine, app UI, SQL (incl. SQL-vs-Python cross-check)
+docs/linkedin_post.md        write-up
 ```
 
 ## Run it
 
 ```bash
 pip install -r requirements-dev.txt
-python scripts/prepare_data.py path/to/quick_comm2.csv     # validates, writes data/orders*.parquet
+python scripts/prepare_data.py path/to/quick_comm2.csv   # validates, writes data/orders*.parquet
 streamlit run streamlit_app.py
-python -m pytest -q                                         # engine, UI, SQL cross-check
+python -m pytest -q                                       # engine, UI, SQL cross-check
 ```
 
 Without any data file the app opens on clearly labelled synthetic data.
 
-### Put the data in BigQuery
+<details>
+<summary><b>Put the data in BigQuery</b></summary>
+
 ```bash
 gcloud auth application-default login
 python scripts/load_to_bigquery.py --project YOUR_PROJECT --dataset margin_console
 ```
-Then run `sql/quick_comm_bigquery.sql`. The table is roughly 100 MB, well inside the free tier. BigQuery *sandbox*
-tables expire after 60 days by default; enable billing on the project (free tier still applies) if you want it to persist.
 
-### Deploy free on Streamlit Community Cloud
+Then run `sql/quick_comm_bigquery.sql`. The table is roughly 100 MB, well inside the free tier. BigQuery sandbox tables expire after 60 days by default; enable billing on the project (free tier still applies) if you want it to persist.
+</details>
+
+<details>
+<summary><b>Deploy free on Streamlit Community Cloud</b></summary>
+
 1. Push the repo to GitHub (do **not** commit `.streamlit/secrets.toml`; it is git-ignored).
 2. In BigQuery/IAM create a service account with *BigQuery Job User* (project) and *BigQuery Data Viewer* (dataset).
-3. share.streamlit.io → New app → `streamlit_app.py`. Under **Settings → Secrets** paste the contents of
-   `.streamlit/secrets.toml.example` filled in with your key.
-4. The sidebar footer shows which source is live (`BigQuery`, `Local parquet` or `Synthetic demo`).
-   If BigQuery fails, the app says so and falls back rather than hiding it.
+3. share.streamlit.io → New app → `streamlit_app.py`. Under Settings → Secrets paste the contents of `.streamlit/secrets.toml.example` filled in with your key.
+4. The sidebar footer shows which source is live (BigQuery, Local parquet or Synthetic demo). If BigQuery fails, the app says so and falls back rather than hiding it.
 
 Check the Kaggle dataset licence before committing `data/orders.parquet`; if unsure, keep the data in BigQuery only.
+</details>
 
-## The experiment (design only, no results)
+---
 
-Randomise customers between "no minimum" and "minimum ₹X" (optionally a fee arm). Primary metric: **contribution profit
-per eligible cart**, with abandoned carts counted as ₹0 so lost orders are priced in. Guardrails: cart→order
-conversion, 28-day repeat orders, ratings. Sample size and duration are calculated in the app's *Experiment design* tab
-from the data's own variance plus stated assumptions. The result feeds straight back into the tool's top-up/abandon
-sliders.
+## Possible next steps
+- Run the A/B test on real traffic and feed results into the sliders.
+- Replace the fitted delivery-cost formula with observed cost data.
+- Add product-level contribution margin instead of the single slider.
 
 ## Contact
-
-Bhuvaneshwari L · lbhuvaneshwari729@gmail.com · [LinkedIn](https://www.linkedin.com/in/bhuvaneshwaril/) · [GitHub](https://github.com/bhuvaneshwari-99)
+**Bhuvaneshwari L** · lbhuvaneshwari729@gmail.com · [LinkedIn](#) · [GitHub](#)
